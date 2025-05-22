@@ -1,28 +1,32 @@
-pipeline {
-    agent any
-    environment {
-        // Get minikube docker-env config (cross-platform compatible)
-        DOCKER_CONFIG = sh(script: 'minikube docker-env --shell=bash | grep -v "^#"', returnStdout: true).trim()
-    }
-    stages {
-        stage('Build Docker Image') {
-            steps {
-                script {
-                    // Apply minikube docker-env settings
-                    withEnv(["DOCKER_CONFIG=${DOCKER_CONFIG}"]) {
-                        sh '''
-                        eval "$DOCKER_CONFIG"
-                        docker build -t hello-devops .
-                        '''
-                    }
-                }
-            }
-        }
-        stage('Deploy to Minikube') {
-            steps {
-                sh 'kubectl apply -f deployment.yaml'
-                sh 'kubectl rollout status deployment/hello-devops'
-            }
-        }
-    }
+#!/bin/bash
+
+# Strict mode for error handling
+set -euo pipefail
+
+# Deployment configuration
+IMAGE_NAME="hello-devops"
+MANIFESTS=("deployment.yaml" "service.yaml")  # List your manifest files
+
+# Verify Minikube is ready
+minikube status >/dev/null || { 
+    echo "❌ Minikube not running. Starting with Docker driver...";
 }
+
+# Point to Minikube's Docker (no eval issues)
+export DOCKER_TLS_VERIFY="1"
+export DOCKER_HOST="tcp://$(minikube ip):2376"
+export DOCKER_CERT_PATH="$HOME/.minikube/certs"
+
+# Deploy to Kubernetes
+echo "🚀 Deploying $IMAGE_NAME to Minikube..."
+for manifest in "${MANIFESTS[@]}"; do
+    kubectl apply -f "$manifest"
+done
+
+# Verify rollout
+kubectl rollout status deployment/"$IMAGE_NAME" --timeout=90s
+
+# Get service URL (for Jenkins console output)
+SERVICE_URL=$(minikube service "$IMAGE_NAME"-service --url 2>/dev/null || true)
+echo "✅ Deployment successful! Service available at:"
+echo "   $SERVICE_URL"
