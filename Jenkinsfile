@@ -36,13 +36,15 @@ pipeline {
         }
 
         stage('Build and Deploy') {
-            steps {
-                script {
-                    // Build with explicit Minikube Docker environment
-                    sh '''
-                    eval $(minikube docker-env) && \
-                    docker build -t hello-devops .
-                    '''
+             steps {
+                sh '''
+        # Manually set Minikube Docker vars
+                export DOCKER_TLS_VERIFY="1"
+                export DOCKER_HOST="tcp://$(minikube ip):2376"
+                export DOCKER_CERT_PATH="$HOME/.minikube/certs"
+        
+                docker build -t hello-devops .
+                '''
                     
                     // Deploy to Kubernetes
                     sh '''
