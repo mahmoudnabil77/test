@@ -35,23 +35,21 @@ pipeline {
             }
         }
 
-        stage('Build and Deploy') {
-             steps {
-                sh '''
-        # Manually set Minikube Docker vars
-                export DOCKER_TLS_VERIFY="1"
-                export DOCKER_HOST="tcp://$(minikube ip):2376"
-                export DOCKER_CERT_PATH="$HOME/.minikube/certs"
-        
+stage('Build with Minikube Docker') {
+    steps {
+        script {
+            // Get Minikube's Docker env config (works without eval)
+            def DOCKER_ENV = sh(
+                script: 'minikube docker-env --shell=bash | grep -v "^#"',
+                returnStdout: true
+            ).trim()
+            
+            // Build using the extracted environment
+            withEnv(["DOCKER_CONFIG=${DOCKER_ENV}"]) {
+                sh """
+                export ${DOCKER_ENV}
                 docker build -t hello-devops .
-                '''
-                    
-                    // Deploy to Kubernetes
-                    sh '''
-                    kubectl apply -f k8s/deployment.yaml
-                    kubectl apply -f k8s/service.yaml
-                    kubectl rollout status deployment/hello-devops --timeout=90s
-                    '''
+                """
                 }
             }
         }
