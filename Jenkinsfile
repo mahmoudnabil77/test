@@ -1,56 +1,63 @@
 pipeline {
     agent any
     environment {
-        // Explicitly set Docker socket path
+        // Default fallback Docker settings
         DOCKER_HOST = "unix:///var/run/docker.sock"
-        // Ensure PATH includes Docker binaries
-        PATH = "/usr/bin:/usr/local/bin:$PATH"
+        KUBECONFIG = "${env.HOME}/.kube/config"
     }
     stages {
-        stage('Verify Environment') {
+        stage('Verify Minikube') {
             steps {
                 script {
-                    // Check Docker access and version
+                    // Check Minikube status and start if needed
                     sh '''
-                    echo "### Docker Info ###"
-                    docker --version || true
-                    ls -l /var/run/docker.sock || true
-                    groups | grep docker || echo "WARNING: User not in docker group"
-                    '''
-                }
-            }
-        }
-
-        stage('Fix Permissions') {
-            steps {
-                script {
-                    // Temporary permission fix (safe for CI)
-                    sh '''
-                    if [ ! -w /var/run/docker.sock ]; then
-                        echo "Attempting to fix Docker socket permissions..."
-                        sudo chmod 666 /var/run/docker.sock || echo "Failed to adjust permissions"
+                    if ! minikube status >/dev/null 2>&1; then
+                        echo "Starting Minikube..."
+                        minikube start --driver=docker --cpus=2 --memory=2000mb
                     fi
                     '''
                 }
             }
         }
 
-stage('Build with Minikube Docker') {
-    steps {
-        script {
-            // Get Minikube's Docker env config (works without eval)
-            def DOCKER_ENV = sh(
-                script: 'minikube docker-env --shell=bash | grep -v "^#"',
-                returnStdout: true
-            ).trim()
-            
-            // Build using the extracted environment
-            withEnv(["DOCKER_CONFIG=${DOCKER_ENV}"]) {
-                sh """
-                export ${DOCKER_ENV}
-                docker build -t hello-devops .
-                """
+        stage('Configure Environment') {
+            steps {
+                script {
+                    // Get Minikube Docker config without eval
+                    def DOCKER_ENV = sh(
+                        script: 'minikube docker-env --shell=bash | grep -v "^#"',
+                        returnStdout: true
+                    ).trim()
+                    
+                    // Store for later stages
+                    env.DOCKER_ENV = DOCKER_ENV
                 }
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    // Use captured environment safely
+                    withEnv(["DOCKER_CONFIG=${env.DOCKER_ENV}"]) {
+                        sh '''
+                        echo "Using Minikube Docker environment:"
+                        echo "${DOCKER_CONFIG}"
+                        export ${DOCKER_CONFIG}
+                        docker build -t hello-devops .
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage('Deploy to Kubernetes') {
+            steps {
+                sh '''
+                kubectl apply -f k8s/deployment.yaml
+                kubectl apply -f k8s/service.yaml
+                kubectl rollout status deployment/hello-devops --timeout=120s
+                '''
             }
         }
     }
@@ -59,14 +66,23 @@ stage('Build with Minikube Docker') {
             // Cleanup resources
             sh '''
             docker system prune -f || true
-            kubectl delete pods --field-selector=status.phase==Succeeded --wait=false 2>/dev/null || true
+            kubectl delete pods --field-selector=status.phase==Succeeded 2>/dev/null || true
             '''
         }
         success {
             // Get application URL
             sh '''
-            echo "Deployment successful!"
+            echo "✅ Deployment successful!"
             minikube service hello-devops-service --url || true
+            '''
+        }
+        failure {
+            // Debugging help
+            sh '''
+            echo "❌ Pipeline failed - gathering diagnostics:"
+            minikube status
+            kubectl get pods
+            kubectl describe deployment/hello-devops
             '''
         }
     }
