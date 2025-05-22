@@ -5,18 +5,6 @@ pipeline {
         DOCKER_HOST = "unix:///var/run/docker.sock"
         KUBECONFIG = "${env.HOME}/.kube/config"
     }
-    stages {
-        stage('Verify Minikube') {
-            steps {
-                script {
-                    // Check Minikube status and start if needed
-                    sh '''
-                        minikube start --driver=docker
-                    '''
-                }
-            }
-        }
-
         stage('Configure Environment') {
             steps {
                 script {
