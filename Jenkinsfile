@@ -11,10 +11,7 @@ pipeline {
                 script {
                     // Check Minikube status and start if needed
                     sh '''
-                    if
-                        echo "Starting Minikube..."
                         minikube start 
-                    fi
                     '''
                 }
             }
