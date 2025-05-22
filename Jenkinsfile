@@ -5,6 +5,7 @@ pipeline {
         DOCKER_HOST = "unix:///var/run/docker.sock"
         KUBECONFIG = "${env.HOME}/.kube/config"
     }
+    stages {
         stage('Configure Environment') {
             steps {
                 script {
@@ -39,8 +40,8 @@ pipeline {
         stage('Deploy to Kubernetes') {
             steps {
                 sh '''
-                kubectl apply -f deployment.yaml
-                kubectl apply -f service.yaml
+                kubectl apply -f k8s/deployment.yaml
+                kubectl apply -f k8s/service.yaml
                 kubectl rollout status deployment/hello-devops --timeout=120s
                 '''
             }
