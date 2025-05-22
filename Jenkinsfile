@@ -11,9 +11,9 @@ pipeline {
                 script {
                     // Check Minikube status and start if needed
                     sh '''
-                    if ! minikube status >/dev/null 2>&1; then
+                    if
                         echo "Starting Minikube..."
-                        minikube start --driver=docker --cpus=2 --memory=2000mb
+                        minikube start 
                     fi
                     '''
                 }
