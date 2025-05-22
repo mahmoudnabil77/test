@@ -13,7 +13,6 @@ spec:
     spec:
       containers:
       - name: hello-devops
-        image: hello-devops
-        imagePullPolicy: Never 
+        image: mahmoudnabil70/hello-devops:latest
         ports:
         - containerPort: 5000
