@@ -11,7 +11,7 @@ pipeline {
                 script {
                     // Check Minikube status and start if needed
                     sh '''
-                        minikube start 
+                        minikube start --driver=docker
                     '''
                 }
             }
